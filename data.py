@@ -117,7 +117,7 @@ def fetch_fundamental_data_yahoo(tickers, crypto_tickers, etf_tickers, max_worke
 
     return fundamentals
 
-#@st.cache #to check how to change for @st.cache_data or @st.cache_ressources
+@st.cache #to check how to change for @st.cache_data or @st.cache_ressources
 def get_data():
     most_active_tickers = fetch_most_active_tickers()
     memes_tickers = [s for s in most_active_tickers if s not in sp500_tickers]
