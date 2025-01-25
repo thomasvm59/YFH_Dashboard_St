@@ -66,7 +66,7 @@ if add_sidebar == 'Market':
     
     # add table for specific sector
     
-    sectors = tuple(summary['Sector'])
+    sectors = tuple(set(summary['Sector']))
     st.write("Sector Performance")
     sector_select = st.selectbox('Pick a Sector:', sectors)
     
