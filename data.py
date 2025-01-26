@@ -1,10 +1,17 @@
-import pandas as pd
-import logging
 from concurrent.futures import ThreadPoolExecutor
+import logging
+import datetime
+import pandas as pd
+import streamlit as st
 import yfinance as yf
 from yahooquery import Screener
-import datetime
-import streamlit as st
+
+"""
+data.py
+
+This module processes data for the screening dashboard, including fetching 
+crypto and ETF tickers and handling related computations and error handling.
+"""
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -46,9 +53,20 @@ sp500_tickers = [
 ]
 
 etf_tickers = ["SPY", "QQQ", "DIA", "IWM"]  # Example ETFs
-crypto_tickers = ["BTC-USD", "ETH-USD","XRP-USD","SOL-USD","BNB-USD","DOGE-USD","ADA-USD","TRX-USD","LINK-USD","AVAX-USD"]  # Example cryptocurrencies
+crypto_tickers = ["BTC-USD", "ETH-USD","XRP-USD","SOL-USD","BNB-USD",
+                  "DOGE-USD","ADA-USD","TRX-USD","LINK-USD","AVAX-USD"]
 
 def fetch_most_active_tickers():
+    """
+    Fetch the most active stock tickers from the 'most_actives' screener.
+    
+    This function uses the Screener class to retrieve the 50 most active stock tickers
+    based on trading activity. It extracts the symbols from the returned data
+    and returns them as a list.
+    
+    Returns:
+        list: A list of strings representing the stock tickers of the most active stocks.
+    """
     screener = Screener()
     # Use the 'most_actives' screener to get the most active tickers
     data = screener.get_screeners('most_actives', count=50)
@@ -84,29 +102,33 @@ def fetch_fundamental_data_yahoo(tickers, crypto_tickers, etf_tickers, max_worke
             stock = yf.Ticker(ticker)
             info = stock.info
             return {
-                "Sector": info.get("sector", default_sector),
-                "PE Ratio": info.get("trailingPE", None),
-                "Revenue(Bn)": info.get("totalRevenue", None) / 1_000_000_000 if info.get("totalRevenue") else None,
-                "dividendYield": info.get("dividendYield", None),
-                "fiveYearAvgDividendYield": info.get("fiveYearAvgDividendYield", None),
-                "payoutRatio": info.get("payoutRatio", None),
-                "beta": info.get("beta", None),
-                "trailingPE": info.get("trailingPE", None),
-                "forwardPE": info.get("forwardPE", None),
-                "volume(mil)": info.get("volume", None) / 1_000_000 if info.get("volume") else None,
-                "averageVolume(mil)": info.get("averageVolume", None) / 1_000_000 if info.get("averageVolume") else None,
-                "marketCap(Bn)": info.get("marketCap", None) / 1_000_000_000 if info.get("marketCap") else None,
-                "shortPercentOfFloat": info.get("shortPercentOfFloat", None),
-                "bookValue": info.get("bookValue", None),
-                "trailingEps": info.get("trailingEps", None),
-                "forwardEps": info.get("forwardEps", None),
-                "symbol": info.get("symbol", None),
-                "shortName": info.get("shortName", None),
-                "debtToEquity": info.get("debtToEquity", None)
+        "Sector": info.get("sector", default_sector),
+        "PE Ratio": info.get("trailingPE", None),
+        "Revenue(Bn)": info.get("totalRevenue", None) / 1_000_000_000\
+            if info.get("totalRevenue") else None,
+        "dividendYield": info.get("dividendYield", None),
+        "5YAvgDiv%": info.get("fiveYearAvgDividendYield", None),
+        "payoutRatio": info.get("payoutRatio", None),
+        "beta": info.get("beta", None),
+        "trailingPE": info.get("trailingPE", None),
+        "forwardPE": info.get("forwardPE", None),
+        "volume(mil)": info.get("volume", None) / 1_000_000\
+            if info.get("volume") else None,
+        "averageVolume(mil)": info.get("averageVolume", None)/ 1_000_000\
+            if info.get("averageVolume") else None,
+        "marketCap(Bn)": info.get("marketCap", None) / 1_000_000_000\
+            if info.get("marketCap") else None,
+        "shortPercentOfFloat": info.get("shortPercentOfFloat", None),
+        "bookValue": info.get("bookValue", None),
+        "trailingEps": info.get("trailingEps", None),
+        "forwardEps": info.get("forwardEps", None),
+        "symbol": info.get("symbol", None),
+        "shortName": info.get("shortName", None),
+        "debtToEquity": info.get("debtToEquity", None)
             }
         except Exception as e:
             print(f"Error fetching data for {ticker}: {e}")
-            return {"Sector": default_sector, "PE Ratio": None, "Revenue(Bn)": None}
+            return {"Sector": default_sector, "PE Ratio": None}
 
     # Use ThreadPoolExecutor for parallel processing
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -118,13 +140,23 @@ def fetch_fundamental_data_yahoo(tickers, crypto_tickers, etf_tickers, max_worke
     return fundamentals
 
 def get_summary_tables_from_prices(df_prices, fundamentals):
+    """
+        Aggregate the prices into summary table
+
+    Args:
+        df_prices : DataFrame of yahoo daily prices
+        df_fundamentals : DataFrame of yahoo fundamentals
+
+    Returns:
+        tuple[pd.DataFrame]
+    """
     summary = pd.DataFrame({
         "price_last": df_prices.iloc[-1],
-        "price_1_d": df_prices.iloc[-2],
-        "price_1_w": df_prices.iloc[-8],
-        "price_1_m": df_prices.iloc[-31],
-        "price_6_m": df_prices.iloc[-183],
-        "price_1_y": df_prices.iloc[-366],
+        "price_1_d": df_prices.iloc[-1-1],
+        "price_1_w": df_prices.iloc[-7-1],
+        "price_1_m": df_prices.iloc[-30-1],
+        "price_6_m": df_prices.iloc[-182-1],
+        "price_1_y": df_prices.iloc[-365-1],
         "price_ath": df_prices.max(),
         "price_1Y_H": df_prices.iloc[-365:].max(),
         "prie_1Y_L": df_prices.iloc[-365:].min(),
@@ -136,12 +168,11 @@ def get_summary_tables_from_prices(df_prices, fundamentals):
     summary['1y_return']=summary['price_last']/summary['price_1_y']-1
     summary['dist_ath']=summary['price_last']/summary['price_ath']-1
     return summary
-    
 
 @st.cache_data
 def get_data(now_ts):
     """
-    Load price data from Yahoo.
+    Load price data from Yahoo API
 
     Args:
         now_ts (int): Current timestamp (rounded to nearest hour).
@@ -156,9 +187,17 @@ def get_data(now_ts):
 
     # Fetch historical prices
     start_date = "2010-01-01"
-    data_equity = yf.download(all_equity_tickers, start=start_date)
-    data_crypto = yf.download(crypto_tickers, start=start_date)
-    prices_equity = data_equity["Close"]
+    
+    try:
+        data_equity = yf.download(all_equity_tickers, start=start_date)
+    except Exception as e:
+        logging.error(f"Failed to download equity prices: {e}")
+    try:
+        data_crypto = yf.download(crypto_tickers, start=start_date)
+    except Exception as e:
+        logging.error(f"Failed to download equity prices: {e}")
+        
+    prices_eq = data_equity["Close"]
     prices_crypto = data_crypto["Close"]
     
     # Fetch and process fundamental data
@@ -173,9 +212,10 @@ def get_data(now_ts):
     fundamentals = pd.DataFrame.from_dict(fundamental_data, orient="index")
     
     # Create summary table
-    summary_equity = get_summary_tables_from_prices(prices_equity, fundamentals)
-    summary_cryto = get_summary_tables_from_prices(prices_crypto, fundamentals)
+    summary_eq = get_summary_tables_from_prices(prices_eq, fundamentals)
+    summary_crypto = get_summary_tables_from_prices(prices_crypto, fundamentals)
+    summary = pd.concat([summary_eq,summary_crypto])
+    prices = pd.concat([prices_eq,prices_crypto],axis=1).ffill()
     update_dt = datetime.datetime.now(tz=datetime.timezone.utc)
     
-    return prices_equity, prices_crypto, summary_equity, summary_cryto, update_dt
-    
+    return prices, summary, update_dt
