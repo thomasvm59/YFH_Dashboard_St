@@ -117,21 +117,53 @@ def fetch_fundamental_data_yahoo(tickers, crypto_tickers, etf_tickers, max_worke
 
     return fundamentals
 
-@st.cache #to check how to change for @st.cache_data or @st.cache_ressources
-def get_data():
+def get_summary_tables_from_prices(df_prices, fundamentals):
+    summary = pd.DataFrame({
+        "price_last": df_prices.iloc[-1],
+        "price_1_d": df_prices.iloc[-2],
+        "price_1_w": df_prices.iloc[-8],
+        "price_1_m": df_prices.iloc[-31],
+        "price_6_m": df_prices.iloc[-183],
+        "price_1_y": df_prices.iloc[-366],
+        "price_ath": df_prices.max(),
+        "price_1Y_H": df_prices.iloc[-365:].max(),
+        "prie_1Y_L": df_prices.iloc[-365:].min(),
+    })
+    summary = summary.merge(fundamentals, left_index=True, right_index=True)
+    summary['1d_return']=summary['price_last']/summary['price_1_d']-1
+    summary['1w_return']=summary['price_last']/summary['price_1_w']-1
+    summary['1m_return']=summary['price_last']/summary['price_1_m']-1
+    summary['1y_return']=summary['price_last']/summary['price_1_y']-1
+    summary['dist_ath']=summary['price_last']/summary['price_ath']-1
+    return summary
+    
+
+@st.cache_data
+def get_data(now_ts):
+    """
+    Load price data from Yahoo.
+
+    Args:
+        now_ts (int): Current timestamp (rounded to nearest hour).
+            Only used by the caching mechanism.
+
+    Returns:
+        tuple[pd.DataFrame, pd.DataFrame, datetime]
+    """
     most_active_tickers = fetch_most_active_tickers()
     memes_tickers = [s for s in most_active_tickers if s not in sp500_tickers]
-    all_tickers = sp500_tickers + etf_tickers + crypto_tickers + memes_tickers
+    all_equity_tickers = sp500_tickers + etf_tickers + memes_tickers
 
     # Fetch historical prices
     start_date = "2010-01-01"
-    data = yf.download(all_tickers, start=start_date)
-    prices = data["Close"].ffill()  # Use adjusted close prices
-    prices = prices[lambda x : x.index<datetime.date.today().isoformat()]
+    data_equity = yf.download(all_equity_tickers, start=start_date)
+    data_crypto = yf.download(crypto_tickers, start=start_date)
+    prices_equity = data_equity["Close"]
+    prices_crypto = data_crypto["Close"]
     
     # Fetch and process fundamental data
     fundamental_data = fetch_fundamental_data_yahoo(
-        tickers=all_tickers,
+        tickers=all_equity_tickers+crypto_tickers,
         crypto_tickers=crypto_tickers,
         etf_tickers=etf_tickers,
         max_workers=10
@@ -141,30 +173,9 @@ def get_data():
     fundamentals = pd.DataFrame.from_dict(fundamental_data, orient="index")
     
     # Create summary table
-    summary = pd.DataFrame({
-        "last_price": prices.iloc[-1],
-        "price_1_d": prices.iloc[-2],
-        "price_1_w": prices.iloc[-8],
-        "price_1_m": prices.iloc[-31],
-        "price_1_y": prices.iloc[-366],
-        "ATH Price": prices.max(),
-        "1Y_H": prices.iloc[-365:].max(),
-        "1Y_L": prices.iloc[-365:].min(),
-    })
+    summary_equity = get_summary_tables_from_prices(prices_equity, fundamentals)
+    summary_cryto = get_summary_tables_from_prices(prices_crypto, fundamentals)
+    update_dt = datetime.datetime.now(tz=datetime.timezone.utc)
     
-    # Merge summary with fundamentals
-    summary = summary.merge(fundamentals, left_index=True, right_index=True)
+    return prices_equity, prices_crypto, summary_equity, summary_cryto, update_dt
     
-    # Save results to a CSV
-    summary.to_csv("market_data_summary.csv")
-    
-    print("Market data summary saved to 'market_data_summary.csv'.")
-    summary['1d_return']=summary['last_price']/summary['price_1_d']-1
-    summary['1w_return']=summary['last_price']/summary['price_1_w']-1
-    summary['1m_return']=summary['last_price']/summary['price_1_m']-1
-    summary['1y_return']=summary['last_price']/summary['price_1_y']-1
-    summary['dist_ath']=summary['last_price']/summary['ATH Price']-1
-    
-    return prices, summary
-    
-
